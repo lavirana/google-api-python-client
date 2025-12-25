@@ -2,49 +2,43 @@ import streamlit as st
 from googleapiclient.discovery import build
 import requests
 
-# 1. Add these to your secrets.toml or Streamlit Cloud Secrets
-# [auth]
-# client_id = "YOUR_CLIENT_ID"
-# client_secret = "YOUR_CLIENT_SECRET"
-# redirect_uri = "https://your-app.streamlit.app/oauth2callback"
+# Set page config
+st.set_page_config(page_title="AI Script to Google Doc", page_icon="📝")
 
 st.title("📝 AI Script to Google Doc")
 
-# Built-in Streamlit OAuth Login (v1.42+)
-if not st.experimental_user.is_logged_in:
+# 1. NEW 2025 AUTH: Use st.user instead of st.experimental_user
+if not st.user.is_logged_in:
+    st.info("Please log in with your Google account to save scripts directly to your Drive.")
     if st.button("Log in with Google"):
         st.login()
+    st.stop()  # Stop the app here if not logged in
 else:
-    st.write(f"Logged in as: {st.experimental_user.name}")
+    # Sidebar Logout option
+    st.sidebar.write(f"Logged in as: **{st.user.name}**")
+    if st.sidebar.button("Log out"):
+        st.logout()
+
+    # --- MAIN APP CONTENT ---
+    st.write("Successfully authenticated with Google! You can now export your scripts.")
     
-    # Text area for the script (Input from your YouTube Tool)
-    script_content = st.text_area("Your YouTube Script:", height=300)
-    doc_title = st.text_input("Document Title:", "My New YouTube Script")
+    # Input Area
+    script_content = st.text_area("Paste your AI-generated script here:", height=300)
+    doc_title = st.text_input("Document Title:", value="My New YouTube Script")
 
     if st.button("Create Google Doc 🚀"):
-        if script_content:
+        if not script_content:
+            st.warning("Please enter some script content first!")
+        else:
             try:
-                # Use the token provided by st.login
-                creds = st.experimental_user.credentials
-                service = build('docs', 'v1', credentials=creds)
+                with st.spinner("Creating your document..."):
+                    # Use the credentials from the logged-in user
+                    # In 2025, st.user.credentials provides the OAuth token directly
+                    creds = st.user.credentials
+                    service = build('docs', 'v1', credentials=creds)
 
-                # Create a blank document
-                doc = service.documents().create(body={'title': doc_title}).execute()
-                doc_id = doc.get('documentId')
+                    # 1. Create a blank document
+                    doc = service.documents().create(body={'title': doc_title}).execute()
+                    doc_id = doc.get('documentId')
 
-                # Insert the script text into the document
-                requests_body = [
-                    {
-                        'insertText': {
-                            'location': {'index': 1},
-                            'text': script_content
-                        }
-                    }
-                ]
-                service.documents().batchUpdate(documentId=doc_id, body={'requests': requests_body}).execute()
-
-                st.success(f"Document Created! ID: {doc_id}")
-                st.markdown(f"[Click here to open your Doc](https://docs.google.com/document/d/{doc_id}/edit)")
-
-            except Exception as e:
-                st.error(f"Error creating document: {e}")
+                    # 2. Insert text into the document
