@@ -9,7 +9,8 @@ CLIENT_SECRET = st.secrets["auth"]["client_secret"]
 REDIRECT_URI = st.secrets["auth"]["redirect_uri"]
 AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
-# We specifically ask for Google Docs and Drive access
+
+# Space-separated string for scopes
 SCOPES = "https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/drive.file"
 
 oauth2 = OAuth2Component(CLIENT_ID, CLIENT_SECRET, AUTHORIZE_URL, TOKEN_URL, TOKEN_URL, REDIRECT_URI)
@@ -18,8 +19,8 @@ st.title("📝 AI Script to Google Doc")
 
 # --- 2. THE LOGIN LOGIC ---
 if 'auth_token' not in st.session_state:
-    # If not logged in, show the manual OAuth button
-    result = oauth2.authorize_button("Log in with Google", SCOPES)
+    # FIXED LINE: Added REDIRECT_URI as the second argument
+    result = oauth2.authorize_button("Log in with Google", REDIRECT_URI, SCOPES)
     if result and 'token' in result:
         st.session_state.auth_token = result['token']
         st.rerun()
@@ -27,8 +28,8 @@ else:
     # --- 3. THE APP CONTENT ---
     token = st.session_state.auth_token.get('access_token')
     
-    st.success("✅ Connected to Google Docs!")
-    if st.button("Log out"):
+    st.sidebar.success("✅ Connected to Google Docs!")
+    if st.sidebar.button("Log out"):
         del st.session_state.auth_token
         st.rerun()
 
@@ -41,14 +42,15 @@ else:
                 creds = Credentials(token=token)
                 service = build('docs', 'v1', credentials=creds)
 
-                # Create and update the doc
+                # Create the doc
                 doc = service.documents().create(body={'title': doc_title}).execute()
                 doc_id = doc.get('documentId')
 
+                # Insert script text
                 requests_body = [{'insertText': {'location': {'index': 1}, 'text': script_content}}]
                 service.documents().batchUpdate(documentId=doc_id, body={'requests': requests_body}).execute()
 
-                st.success("Saved to Drive!")
+                st.success("Successfully saved to Drive!")
                 st.link_button("📂 Open Document", f"https://docs.google.com/document/d/{doc_id}/edit")
         except Exception as e:
             st.error(f"Error: {e}")
