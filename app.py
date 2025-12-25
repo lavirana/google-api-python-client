@@ -1,5 +1,6 @@
 import streamlit as st
 from googleapiclient.discovery import build
+from google.oauth2.credentials import Credentials
 import requests
 
 # Set page config
@@ -8,6 +9,7 @@ st.set_page_config(page_title="AI Script to Google Doc", page_icon="📝")
 st.title("📝 AI Script to Google Doc")
 
 # 1. AUTHENTICATION (Stable 2025 Version)
+# st.user is the new standard for identity and auth
 if not st.user.is_logged_in:
     st.info("Please log in with your Google account to save scripts directly to your Drive.")
     if st.button("Log in with Google"):
@@ -22,6 +24,7 @@ else:
     # --- MAIN APP CONTENT ---
     st.write("✅ Authentication Successful! Ready to create your Google Doc.")
     
+    # Input Area
     script_content = st.text_area("Paste your AI-generated script here:", height=300)
     doc_title = st.text_input("Document Title:", value="My New YouTube Script")
 
@@ -31,8 +34,15 @@ else:
         else:
             try:
                 with st.spinner("Talking to Google..."):
-                    # Use credentials from st.user (Requires Streamlit 1.42+)
-                    creds = st.user.credentials
+                    # 2025 FIX: Get the access token directly from st.user
+                    token = st.user.get("access_token")
+                    
+                    if not token:
+                        st.error("No access token found. Please logout and login again.")
+                        st.stop()
+
+                    # Reconstruct the Credentials object for the Google Discovery Build
+                    creds = Credentials(token=token)
                     service = build('docs', 'v1', credentials=creds)
 
                     # 1. Create the blank document
@@ -40,7 +50,7 @@ else:
                     doc_id = doc.get('documentId')
 
                     # 2. Insert the script text
-                    # We start at index 1 because index 0 is the start of the doc
+                    # Index 1 is the starting point of a new Google Doc
                     requests_body = [
                         {
                             'insertText': {
@@ -61,6 +71,5 @@ else:
                     st.link_button("📂 Open Your Google Doc", f"https://docs.google.com/document/d/{doc_id}/edit")
 
             except Exception as e:
-                # THIS BLOCK FIXES THE SYNTAX ERROR
                 st.error(f"Failed to create document: {e}")
-                st.info("Double-check that the Google Docs API is enabled in your Cloud Console.")
+                st.info("💡 Pro Tip: Make sure the Google Docs API is enabled in your Cloud Console.")
